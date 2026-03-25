@@ -1,12 +1,10 @@
-import { streamText, convertToModelMessages } from "ai"
+import { streamText } from "ai"
 import { google } from "@ai-sdk/google"
 
 export async function POST(req: Request) {
   const { messages, userProfile, assessmentResults } = await req.json()
 
-  // Build context about the user for personalized advice
   let systemContext = `You are CareerCompass, an expert AI career counselor and mentor designed to help Indian students (ages 13-30) discover and pursue their ideal career paths.
-
 Your role is to:
 - Provide personalized career guidance based on the student's profile, interests, and assessment results
 - Explain various career options, required skills, educational paths, and job market trends in India
@@ -24,7 +22,6 @@ Communication style:
 
   if (userProfile) {
     systemContext += `
-
 Student Profile:
 - Name: ${userProfile.full_name || "Student"}
 - Age: ${userProfile.age || "Not specified"}
@@ -47,18 +44,25 @@ Student Profile:
       .join(", ")
 
     systemContext += `
-
 Assessment Results:
 - Top Traits: ${traits || "Not assessed yet"}
 - Recommended Careers: ${topCareers || "Not assessed yet"}
-
 Use this assessment data to provide personalized career recommendations and insights.`
   }
+
+  // Extract plain text messages for Gemini
+  const formattedMessages = messages.map((msg: any) => ({
+    role: msg.role,
+    content: msg.parts
+      ?.filter((p: any) => p.type === "text")
+      .map((p: any) => p.text)
+      .join("") || msg.content || "",
+  }))
 
   const result = streamText({
     model: google("gemini-2.0-flash"),
     system: systemContext,
-    messages: await convertToModelMessages(messages),
+    messages: formattedMessages,
   })
 
   return result.toUIMessageStreamResponse()
