@@ -1,7 +1,8 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Compass, Brain, MessageSquare, Map, Network, BarChart3, Sparkles, ArrowRight, CheckCircle2 } from "lucide-react"
+import { Compass, Brain, MessageSquare, Map, Network, BarChart3, Sparkles, ArrowRight, CheckCircle2, FlaskConical } from "lucide-react"
+import { enterDemoMode } from "./auth/actions"
 
 export default function LandingPage() {
   return (
@@ -64,9 +65,12 @@ export default function LandingPage() {
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
-              <Button size="lg" variant="outline" className="w-full sm:w-auto" asChild>
-                <Link href="#features">Explore Features</Link>
-              </Button>
+              <form action={enterDemoMode}>
+                <Button size="lg" variant="outline" className="w-full sm:w-auto" type="submit">
+                  <FlaskConical className="mr-2 h-4 w-4" />
+                  Try Demo
+                </Button>
+              </form>
             </div>
             <div className="mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-4 text-sm text-muted-foreground">
               <div className="flex items-center gap-2">

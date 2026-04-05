@@ -37,16 +37,24 @@ export async function updateSession(request: NextRequest) {
 
   // IMPORTANT: If you remove getUser() and you use server-side rendering
   // with the Supabase client, your users may be randomly logged out.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Check for demo mode cookie first
+  const isDemoMode = request.cookies.get('demo_mode')?.value === 'true'
+
+  let user = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch (err) {
+    // If Supabase is unreachable, allow demo mode to work
+  }
 
   if (
-    // if the user is not logged in and the dashboard is accessed, redirect to the login page
+    // if the user is not logged in AND not in demo mode, redirect to login
     request.nextUrl.pathname.startsWith('/dashboard') &&
-    !user
+    !user &&
+    !isDemoMode
   ) {
-    // no user, potentially respond by redirecting the user to the login page
+    // no user and no demo mode, redirect to login page
     const url = request.nextUrl.clone()
     url.pathname = '/auth/login'
     return NextResponse.redirect(url)

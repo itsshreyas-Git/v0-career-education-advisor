@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { signUp } from "../actions"
+import { signUp, enterDemoMode } from "../actions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,6 +12,7 @@ import { Compass, Loader2 } from "lucide-react"
 export default function SignUpPage() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [showDemoOption, setShowDemoOption] = useState(false)
 
   const handleSubmit = async (formData: FormData) => {
     setError(null)
@@ -20,15 +21,18 @@ export default function SignUpPage() {
     try {
       const result = await signUp(formData)
       if (result?.error) {
-        setError(result.error)
+        if (result.error === "network_error") {
+          setShowDemoOption(true)
+          setError("Unable to connect to authentication service. Try Demo Mode to explore the app.")
+        } else {
+          setError(result.error)
+        }
         setIsLoading(false)
       }
-      // If successful, the server action will redirect
     } catch (err) {
-      // Redirect throws an error in Next.js, which is expected behavior
-      // Only show error if it's not a redirect
       if (err instanceof Error && !err.message.includes('NEXT_REDIRECT')) {
-        setError("Unable to create account. Please try again.")
+        setShowDemoOption(true)
+        setError("Unable to connect. Try Demo Mode to explore the app.")
         setIsLoading(false)
       }
     }
@@ -92,6 +96,14 @@ export default function SignUpPage() {
               <div className="mt-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
                 {error}
               </div>
+            )}
+
+            {showDemoOption && (
+              <form action={enterDemoMode} className="mt-4">
+                <Button type="submit" variant="outline" className="w-full border-primary text-primary hover:bg-primary/10">
+                  Enter Demo Mode
+                </Button>
+              </form>
             )}
 
             <Button type="submit" className="mt-6 w-full" disabled={isLoading}>
