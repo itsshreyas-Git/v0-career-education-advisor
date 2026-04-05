@@ -24,25 +24,30 @@ export default function SignUpPage() {
     setError(null)
     setIsLoading(true)
 
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || 
-          `${window.location.origin}/dashboard`,
-        data: {
-          full_name: fullName,
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || 
+            `${window.location.origin}/dashboard`,
+          data: {
+            full_name: fullName,
+          },
         },
-      },
-    })
+      })
 
-    if (error) {
-      setError(error.message)
+      if (error) {
+        setError(error.message)
+        setIsLoading(false)
+        return
+      }
+
+      router.push("/auth/sign-up-success")
+    } catch (err) {
+      setError("Unable to connect. Please check your internet connection and try again.")
       setIsLoading(false)
-      return
     }
-
-    router.push("/auth/sign-up-success")
   }
 
   return (
