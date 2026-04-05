@@ -1,7 +1,12 @@
 import { streamText, convertToModelMessages } from "ai"
 
+export const maxDuration = 60
+
 export async function POST(req: Request) {
-  const { messages, userProfile, assessmentResults } = await req.json()
+  try {
+    const { messages, userProfile, assessmentResults } = await req.json()
+    
+    console.log("[v0] Chat API called with", messages?.length, "messages")
 
   // Build context about the user for personalized advice
   let systemContext = `You are CareerCompass, an expert AI career counselor and mentor designed to help Indian students (ages 13-30) discover and pursue their ideal career paths.
@@ -55,10 +60,17 @@ Use this assessment data to provide personalized career recommendations and insi
   }
 
   const result = streamText({
-    model: "anthropic/claude-sonnet-4-20250514",
-    system: systemContext,
-    messages: await convertToModelMessages(messages),
-  })
+      model: "anthropic/claude-sonnet-4-20250514",
+      system: systemContext,
+      messages: await convertToModelMessages(messages),
+    })
 
-  return result.toUIMessageStreamResponse()
+    return result.toUIMessageStreamResponse()
+  } catch (error) {
+    console.error("[v0] Chat API error:", error)
+    return new Response(
+      JSON.stringify({ error: "Failed to process chat request" }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    )
+  }
 }

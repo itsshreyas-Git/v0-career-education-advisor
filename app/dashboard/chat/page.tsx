@@ -49,14 +49,20 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
 
-  const { messages, sendMessage, status, setMessages } = useChat({
-    transport: new DefaultChatTransport({
-      api: "/api/chat",
+  const transport = useRef(new DefaultChatTransport({
+    api: "/api/chat",
+    prepareSendMessagesRequest: ({ id, messages }) => ({
       body: {
+        messages,
+        id,
         userProfile,
         assessmentResults,
       },
     }),
+  }))
+
+  const { messages, sendMessage, status, setMessages } = useChat({
+    transport: transport.current,
   })
 
   useEffect(() => {

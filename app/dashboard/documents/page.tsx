@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
+import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -21,11 +22,11 @@ import {
 
 interface ExtractedDocument {
   id: string
-  type: "certificate" | "marksheet" | "report" | "other"
-  title: string
-  extractedData: Record<string, string>
-  uploadedAt: Date
-  status: "processing" | "completed" | "error"
+  document_type: "certificate" | "marksheet" | "report" | "other"
+  name: string
+  extracted_data: Record<string, string>
+  uploaded_at: string
+  status: "pending" | "processing" | "completed" | "error"
 }
 
 export default function DocumentsPage() {
@@ -33,7 +34,29 @@ export default function DocumentsPage() {
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [dragActive, setDragActive] = useState(false)
+  const [loading, setLoading] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const supabase = createClient()
+
+  useEffect(() => {
+    loadDocuments()
+  }, [])
+
+  const loadDocuments = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data } = await supabase
+        .from("documents")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("uploaded_at", { ascending: false })
+      
+      if (data) {
+        setDocuments(data)
+      }
+    }
+    setLoading(false)
+  }
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault()
@@ -67,6 +90,9 @@ export default function DocumentsPage() {
       return
     }
 
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
     setIsUploading(true)
     setUploadProgress(0)
 
@@ -81,30 +107,54 @@ export default function DocumentsPage() {
       })
     }, 200)
 
-    // Simulate OCR processing
-    const newDoc: ExtractedDocument = {
-      id: Date.now().toString(),
-      type: detectDocumentType(file.name),
-      title: file.name,
-      extractedData: {},
-      uploadedAt: new Date(),
-      status: "processing",
+    const docType = detectDocumentType(file.name)
+
+    // Create document record in database
+    const { data: newDoc, error } = await supabase
+      .from("documents")
+      .insert({
+        user_id: user.id,
+        name: file.name,
+        document_type: docType,
+        status: "processing",
+        extracted_data: {},
+      })
+      .select()
+      .single()
+
+    if (error || !newDoc) {
+      clearInterval(progressInterval)
+      setIsUploading(false)
+      setUploadProgress(0)
+      alert("Failed to upload document")
+      return
     }
 
     setDocuments(prev => [newDoc, ...prev])
 
     // Simulate OCR completion
-    setTimeout(() => {
+    setTimeout(async () => {
       clearInterval(progressInterval)
       setUploadProgress(100)
       
-      const extractedData = simulateOCRExtraction(newDoc.type)
+      const extractedData = simulateOCRExtraction(docType)
       
-      setDocuments(prev => prev.map(doc => 
-        doc.id === newDoc.id 
-          ? { ...doc, status: "completed", extractedData }
-          : doc
-      ))
+      // Update document with extracted data
+      const { data: updatedDoc } = await supabase
+        .from("documents")
+        .update({ 
+          status: "completed", 
+          extracted_data: extractedData 
+        })
+        .eq("id", newDoc.id)
+        .select()
+        .single()
+
+      if (updatedDoc) {
+        setDocuments(prev => prev.map(doc => 
+          doc.id === newDoc.id ? updatedDoc : doc
+        ))
+      }
       
       setTimeout(() => {
         setIsUploading(false)
@@ -113,7 +163,7 @@ export default function DocumentsPage() {
     }, 2000)
   }
 
-  const detectDocumentType = (filename: string): ExtractedDocument["type"] => {
+  const detectDocumentType = (filename: string): ExtractedDocument["document_type"] => {
     const lower = filename.toLowerCase()
     if (lower.includes("certificate") || lower.includes("cert")) return "certificate"
     if (lower.includes("mark") || lower.includes("result") || lower.includes("grade")) return "marksheet"
@@ -121,7 +171,7 @@ export default function DocumentsPage() {
     return "other"
   }
 
-  const simulateOCRExtraction = (type: ExtractedDocument["type"]) => {
+  const simulateOCRExtraction = (type: ExtractedDocument["document_type"]) => {
     switch (type) {
       case "certificate":
         return {
@@ -154,7 +204,8 @@ export default function DocumentsPage() {
     }
   }
 
-  const removeDocument = (id: string) => {
+  const removeDocument = async (id: string) => {
+    await supabase.from("documents").delete().eq("id", id)
     setDocuments(prev => prev.filter(doc => doc.id !== id))
   }
 
@@ -170,6 +221,14 @@ export default function DocumentsPage() {
     marksheet: "bg-blue-500",
     report: "bg-green-500",
     other: "bg-gray-500",
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
   }
 
   return (
@@ -277,8 +336,9 @@ export default function DocumentsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {documents.map((doc) => {
-              const Icon = typeIcons[doc.type]
-              const color = typeColors[doc.type]
+              const Icon = typeIcons[doc.document_type] || FileImage
+              const color = typeColors[doc.document_type] || "bg-gray-500"
+              const extractedData = doc.extracted_data || {}
               
               return (
                 <div
@@ -292,9 +352,9 @@ export default function DocumentsPage() {
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <h4 className="font-medium">{doc.title}</h4>
+                          <h4 className="font-medium">{doc.name}</h4>
                           <Badge variant="secondary" className="capitalize text-xs">
-                            {doc.type}
+                            {doc.document_type}
                           </Badge>
                           {doc.status === "processing" && (
                             <Loader2 className="h-4 w-4 animate-spin text-primary" />
@@ -307,7 +367,7 @@ export default function DocumentsPage() {
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Uploaded {doc.uploadedAt.toLocaleString()}
+                          Uploaded {new Date(doc.uploaded_at).toLocaleString()}
                         </p>
                       </div>
                     </div>
@@ -321,13 +381,13 @@ export default function DocumentsPage() {
                     </Button>
                   </div>
 
-                  {doc.status === "completed" && Object.keys(doc.extractedData).length > 0 && (
+                  {doc.status === "completed" && Object.keys(extractedData).length > 0 && (
                     <div className="mt-4 rounded-lg bg-muted/50 p-3">
                       <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
                         Extracted Information
                       </p>
                       <div className="grid gap-2 sm:grid-cols-2">
-                        {Object.entries(doc.extractedData).map(([key, value]) => (
+                        {Object.entries(extractedData).map(([key, value]) => (
                           <div key={key} className="flex justify-between text-sm">
                             <span className="text-muted-foreground">{key}:</span>
                             <span className="font-medium">{value}</span>

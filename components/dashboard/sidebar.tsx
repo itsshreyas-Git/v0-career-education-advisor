@@ -26,6 +26,7 @@ import {
   FileText,
   Settings,
   LogOut,
+  GraduationCap,
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
@@ -47,6 +48,7 @@ const navItems = [
   { title: "AI Advisor", href: "/dashboard/chat", icon: MessageSquare },
   { title: "Career Roadmap", href: "/dashboard/roadmap", icon: Map },
   { title: "Knowledge Graph", href: "/dashboard/explore", icon: Network },
+  { title: "Scholarships", href: "/dashboard/scholarships", icon: GraduationCap },
   { title: "Documents", href: "/dashboard/documents", icon: FileText },
 ]
 
