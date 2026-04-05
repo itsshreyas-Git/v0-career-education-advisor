@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useMemo } from "react"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport, type UIMessage } from "ai"
 import { createClient } from "@/lib/supabase/client"
@@ -46,23 +46,17 @@ export default function ChatPage() {
   const [userProfile, setUserProfile] = useState<Profile | null>(null)
   const [assessmentResults, setAssessmentResults] = useState<AssessmentResult | null>(null)
   const [input, setInput] = useState("")
+  const [isDataLoaded, setIsDataLoaded] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
 
-  const transport = useRef(new DefaultChatTransport({
+  // Create transport without custom body - we'll pass data via sendMessage
+  const transport = useMemo(() => new DefaultChatTransport({
     api: "/api/chat",
-    prepareSendMessagesRequest: ({ id, messages }) => ({
-      body: {
-        messages,
-        id,
-        userProfile,
-        assessmentResults,
-      },
-    }),
-  }))
+  }), [])
 
   const { messages, sendMessage, status, setMessages } = useChat({
-    transport: transport.current,
+    transport,
   })
 
   useEffect(() => {
@@ -78,7 +72,7 @@ export default function ChatPage() {
     if (user) {
       const [profileRes, assessmentRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", user.id).single(),
-        supabase.from("assessment_results").select("*").eq("user_id", user.id).single()
+        supabase.from("assessment_results").select("*").eq("user_id", user.id).order("completed_at", { ascending: false }).limit(1).single()
       ])
 
       if (profileRes.data) {
@@ -88,6 +82,7 @@ export default function ChatPage() {
         setAssessmentResults(assessmentRes.data)
       }
     }
+    setIsDataLoaded(true)
   }
 
   const scrollToBottom = () => {
@@ -96,7 +91,8 @@ export default function ChatPage() {
 
   const handleSend = () => {
     if (!input.trim()) return
-    sendMessage({ text: input })
+    // Pass dynamic data via sendMessage body option
+    sendMessage({ text: input }, { body: { userProfile, assessmentResults } })
     setInput("")
   }
 
@@ -108,7 +104,7 @@ export default function ChatPage() {
   }
 
   const handleSuggestedQuestion = (question: string) => {
-    sendMessage({ text: question })
+    sendMessage({ text: question }, { body: { userProfile, assessmentResults } })
   }
 
   const handleNewChat = () => {
@@ -116,6 +112,17 @@ export default function ChatPage() {
   }
 
   const isLoading = status === "streaming" || status === "submitted"
+
+  if (!isDataLoaded) {
+    return (
+      <div className="flex h-[calc(100vh-8rem)] items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading AI Advisor...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-[calc(100vh-8rem)] flex-col">
