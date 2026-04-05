@@ -1,9 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { createClient } from "@/lib/supabase/client"
+import { signUp } from "../actions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,42 +10,27 @@ import { FieldGroup, Field, FieldLabel } from "@/components/ui/field"
 import { Compass, Loader2 } from "lucide-react"
 
 export default function SignUpPage() {
-  const [fullName, setFullName] = useState("")
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
-  const supabase = createClient()
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (formData: FormData) => {
     setError(null)
     setIsLoading(true)
-
+    
     try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || 
-            `${window.location.origin}/dashboard`,
-          data: {
-            full_name: fullName,
-          },
-        },
-      })
-
-      if (error) {
-        setError(error.message)
+      const result = await signUp(formData)
+      if (result?.error) {
+        setError(result.error)
         setIsLoading(false)
-        return
       }
-
-      router.push("/auth/sign-up-success")
+      // If successful, the server action will redirect
     } catch (err) {
-      setError("Unable to connect. Please check your internet connection and try again.")
-      setIsLoading(false)
+      // Redirect throws an error in Next.js, which is expected behavior
+      // Only show error if it's not a redirect
+      if (err instanceof Error && !err.message.includes('NEXT_REDIRECT')) {
+        setError("Unable to create account. Please try again.")
+        setIsLoading(false)
+      }
     }
   }
 
@@ -66,16 +50,15 @@ export default function SignUpPage() {
           <CardDescription>Start your personalized career journey today</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSignUp}>
+          <form action={handleSubmit}>
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="fullName">Full Name</FieldLabel>
                 <Input
                   id="fullName"
+                  name="fullName"
                   type="text"
                   placeholder="Your full name"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
                   required
                   disabled={isLoading}
                 />
@@ -84,10 +67,9 @@ export default function SignUpPage() {
                 <FieldLabel htmlFor="email">Email</FieldLabel>
                 <Input
                   id="email"
+                  name="email"
                   type="email"
                   placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
                   required
                   disabled={isLoading}
                 />
@@ -96,10 +78,9 @@ export default function SignUpPage() {
                 <FieldLabel htmlFor="password">Password</FieldLabel>
                 <Input
                   id="password"
+                  name="password"
                   type="password"
                   placeholder="At least 6 characters"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={6}
                   disabled={isLoading}
