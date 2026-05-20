@@ -86,14 +86,6 @@ export default function LoginPage() {
               </div>
             )}
 
-            {showDemoOption && (
-              <form action={enterDemoMode} className="mt-4">
-                <Button type="submit" variant="outline" className="w-full border-primary text-primary hover:bg-primary/10">
-                  Enter Demo Mode
-                </Button>
-              </form>
-            )}
-
             <Button type="submit" className="mt-6 w-full" disabled={isLoading}>
               {isLoading ? (
                 <>
@@ -105,6 +97,14 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
+
+          {showDemoOption && (
+            <form action={enterDemoMode} className="mt-4">
+              <Button type="submit" variant="outline" className="w-full border-primary text-primary hover:bg-primary/10">
+                Enter Demo Mode
+              </Button>
+            </form>
+          )}
 
           <p className="mt-6 text-center text-sm text-muted-foreground">
             Don&apos;t have an account?{" "}
