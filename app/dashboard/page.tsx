@@ -1,33 +1,56 @@
 import { createClient } from "@/lib/supabase/server"
+import { cookies } from "next/headers"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
 import { Brain, MessageSquare, Map, Network, ArrowRight, Target, TrendingUp, Award, Clock } from "lucide-react"
 
+// Demo data for when Supabase is unavailable
+const DEMO_PROFILE = {
+  full_name: "Demo User",
+  age: 17,
+  education_level: "12th Grade",
+  interests: ["Technology", "Science", "Arts"],
+  skills: ["Problem Solving", "Critical Thinking"]
+}
+
+const DEMO_MILESTONES = [
+  { id: "1", title: "Complete Career Assessment", completed: false, description: "Discover your strengths and interests" },
+  { id: "2", title: "Explore 3 Career Paths", completed: false, description: "Research potential careers" },
+  { id: "3", title: "Talk to AI Advisor", completed: false, description: "Get personalized guidance" },
+]
+
 export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const cookieStore = await cookies()
+  const isDemoMode = cookieStore.get("demo_mode")?.value === "true"
+  
+  let profile = DEMO_PROFILE
+  let assessments: any[] = []
+  let milestones = DEMO_MILESTONES
+  
+  // Only try to fetch from Supabase if not in demo mode
+  if (!isDemoMode) {
+    try {
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user!.id)
-    .single()
+      if (user) {
+        const [profileRes, assessmentsRes, milestonesRes] = await Promise.all([
+          supabase.from("profiles").select("*").eq("id", user.id).single(),
+          supabase.from("assessment_results").select("*").eq("user_id", user.id).order("completed_at", { ascending: false }).limit(1),
+          supabase.from("milestones").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5)
+        ])
 
-  const { data: assessments } = await supabase
-    .from("assessment_results")
-    .select("*")
-    .eq("user_id", user!.id)
-    .order("completed_at", { ascending: false })
-    .limit(1)
-
-  const { data: milestones } = await supabase
-    .from("milestones")
-    .select("*")
-    .eq("user_id", user!.id)
-    .order("created_at", { ascending: false })
-    .limit(5)
+        if (profileRes.data) profile = profileRes.data
+        if (assessmentsRes.data) assessments = assessmentsRes.data
+        if (milestonesRes.data && milestonesRes.data.length > 0) milestones = milestonesRes.data
+      }
+    } catch (error) {
+      // If Supabase is unreachable, use demo data
+      console.log("[v0] Using demo data - Supabase unavailable")
+    }
+  }
 
   const hasAssessment = assessments && assessments.length > 0
   const completedMilestones = milestones?.filter(m => m.completed).length || 0
